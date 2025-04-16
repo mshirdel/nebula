@@ -1,0 +1,40 @@
+package postgres
+
+import (
+	"fmt"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/plugin/prometheus"
+)
+
+func NewPostgres(cfg *Config) (*gorm.DB, error) {
+	dsn := cfg.DSN()
+
+	postgres, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("can't open DB with: %w", err)
+	}
+
+	postgres.Logger = NewGormLogger(cfg.Logger.SlowThreshold)
+
+	err = postgres.Use(prometheus.New(prometheus.Config{DBName: cfg.DBName, StartServer: false}))
+	if err != nil {
+		return nil, fmt.Errorf("can't use prometheus plugin: %w", err)
+	}
+
+	sqlDB, err := postgres.DB()
+	if err != nil {
+		return nil, fmt.Errorf("can't get DB from gorm: %w", err)
+	}
+
+	sqlDB.SetMaxOpenConns(cfg.PoolSize)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConnections)
+	sqlDB.SetConnMaxLifetime(cfg.ConnectionLifetime)
+
+	if err = sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("can't ping DB with: %w", err)
+	}
+
+	return postgres, nil
+}
