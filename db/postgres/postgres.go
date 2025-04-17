@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/plugin/prometheus"
@@ -37,4 +38,15 @@ func NewPostgres(cfg *Config) (*gorm.DB, error) {
 	}
 
 	return postgres, nil
+}
+
+func Close(db *gorm.DB) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		logrus.Errorf("get gorm db: %s", err.Error())
+	}
+
+	if err := sqlDB.Close(); err != nil {
+		logrus.Errorf("close database: %s", err.Error())
+	}
 }
