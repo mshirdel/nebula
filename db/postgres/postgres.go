@@ -6,13 +6,21 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/plugin/prometheus"
 )
 
 func NewPostgres(cfg *Config) (*gorm.DB, error) {
 	dsn := cfg.DSN()
 
-	postgres, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	postgres, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.New(logrus.StandardLogger(), logger.Config{
+			SlowThreshold:             cfg.Logger.SlowThreshold,
+			LogLevel:                  cfg.Logger.GormLogLevel(),
+			Colorful:                  cfg.Logger.Colorful,
+			IgnoreRecordNotFoundError: cfg.Logger.IgnoreRecordNotFoundError,
+		}),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("can't open DB with: %w", err)
 	}

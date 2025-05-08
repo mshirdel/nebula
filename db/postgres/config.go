@@ -3,6 +3,8 @@ package postgres
 import (
 	"fmt"
 	"time"
+
+	"gorm.io/gorm/logger"
 )
 
 type Config struct {
@@ -15,11 +17,31 @@ type Config struct {
 	ConnectionLifetime time.Duration  `mapstructure:"connection-lifetime" validate:"required"`
 	PoolSize           int            `mapstructure:"pool-size" validate:"required"`
 	MaxIdleConnections int            `mapstructure:"max-idle-connections" validate:"required"`
+	SSLMode            string         `mapstructure:"sslmode" validate:"required"`
+	TimeZone           string         `mapstructure:"time-zone" validate:"required"`
 	Logger             DatabaseLogger `mapstructure:"logger" validate:"required"`
 }
 
 type DatabaseLogger struct {
-	SlowThreshold time.Duration `mapstructure:"slow-threshold" validate:"required"`
+	SlowThreshold             time.Duration `mapstructure:"slow-threshold" validate:"required"`
+	Level                     string        `mapstructure:"level" validate:"required,lowercase,oneof=silent error warn warning info"`
+	Colorful                  bool          `mapstructure:"colorful"`
+	IgnoreRecordNotFoundError bool          `mapstructure:"ignore-record-not-found-error"`
+}
+
+func (l DatabaseLogger) GormLogLevel() logger.LogLevel {
+	switch l.Level {
+	case "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "warn", "warning":
+		return logger.Warn
+	case "info":
+		return logger.Info
+	default:
+		return logger.Warn
+	}
 }
 
 func (d *Config) DSN() string {
@@ -30,19 +52,16 @@ func (d *Config) MigrationDSN() string {
 	return d.makeDSN(false)
 }
 
-func (d *Config) makeDSN(dbSelected bool) string {
-	var dbName string
-	if dbSelected {
-		dbName = fmt.Sprintf(" database=%s", d.DBName)
-	}
-
+func (d *Config) makeDSN(_ bool) string {
 	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s%s connect_timeout=%d sslmode=disable",
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s connect_timeout=%d",
 		d.Host,
-		d.Port,
 		d.Username,
 		d.Password,
-		dbName,
+		d.DBName,
+		d.Port,
+		d.SSLMode,
+		d.TimeZone,
 		int(d.ConnectionTimeout.Seconds()),
 	)
 
